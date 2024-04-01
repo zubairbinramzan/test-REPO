@@ -1,0 +1,14 @@
+name: Deploy by Maunal trigger - latest
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: Select environment
+        options:
+        - dev-api-dashboard
+        - dev-admin-api-dashboard
+        - dev-th-api-dashboard
+        required: true
+        
+        
