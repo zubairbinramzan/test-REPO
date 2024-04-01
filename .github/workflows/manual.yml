@@ -2,13 +2,116 @@ name: Deploy by Maunal trigger - latest
 on:
   workflow_dispatch:
     inputs:
-      environment:
+      envionment:
         type: choice
         description: Select environment
         options:
         - dev-api-dashboard
         - dev-admin-api-dashboard
         - dev-th-api-dashboard
+        
         required: true
+env:
+  AWS_REGION: us-east-1                             # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: dev-api-dashboard                    # set this to your Amazon ECR repository name
+  ECS_CLUSTER: ezra-dev-cluster                     # set this to your Amazon ECS cluster name
+  ECS_TASK_DEFINITION: tasks/dev-task-definition.json         # set this to the path to your Amazon ECS task definition
+  CONTAINER_NAME: api-dashboard                        # set this to the name of the container in the
+  #ECS_SERVICES: ${{ github.event.inputs.choice }} # set this to your Amazon ECS service name
+  ECS_SERVICE: dev-api-dashboard-us-east-1b
+  ADMIN_ECS_SERVICE: dev-admin-api-dashboard
+  ADMIN_ECS_TASK_DEFINITION: dev-admin-api-dashboard
+  ADMIN_TASK_DEFINITION: dev-admin-api-dashboard.json
+  TH_TASK_DEFINITION: dev-th-api-dashboard.json
+  TH_ECS_SERVICE: dev-th-api-dashboard-integration
+
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Credentials for AWS
+      run: |
+        AWS_ACCESS_KEY=""
+        AWS_SECRET_ACCESS_KEY=""
+        if [ "${{ inputs.environment }}" == "dev-api-dashboard" ]; then
+          echo "Setting up AWS Credentials for Non Prod Account"
+          export AWS_ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_KEY_NDEV }}")
+          export AWS_SECRET_ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_SECRET_NDEV  }}")
+        elif [ "${{ inputs.environment }}" == "dev-admin-api-dashboard" ]; then
+          echo "Setting up AWS Credentials for dev-admin Account"
+          export AWS_ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_KEY_NDEV }}")
+          export AWS_SECRET_ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_SECRET_NDEV  }}")
+        elif [ "${{ inputs.environment }}" == "dev-th-api-dashboard" ]; then
+          echo "Setting up AWS Credentials for dev-th Account"
+          export AWS_ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_KEY_NDEV }}")
+          export AWS_SECRET_ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_SECRET_NDEV  }}")    
+        fi
+        if [[ -z $AWS_ACCESS_KEY ]]; then
+          echo 'Value not set'
+        else
+          echo 'Value is set'
+        fi
+        echo "AWS_ACCESS_KEY=$AWS_ACCESS_KEY" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+        echo "The key is ${{ env.AWS_ACCESS_KEY }}"
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Download Admin ECS Task Definition
+      if: "${{ inputs.environment == 'dev-api-dashboard'}}"
+      run: |
+        aws ecs describe-task-definition --task-definition dev-api-dashboard --query taskDefinition > dev-api-dashboard.json
+        ls
+        cat dev-api-dashboard.json
+    # Step 7: Update Admin Task Definition From Local File
+    - name: Deploy Admin Amazon ECS task definition
+      if: "${{ inputs.environment == 'dev-api-dashboard'}}"
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ env.ADMIN_TASK_DEFINITION }}
+        service: ${{ env.ADMIN_ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+          
+
+    - name: Download Admin ECS Task Definition
+      if: "${{ inputs.environment == 'dev-admin-api-dashboard'}}"
+      run: |
+        aws ecs describe-task-definition --task-definition dev-admin-api-dashboard --query taskDefinition > dev-admin-api-dashboard.json
+        ls
+        cat dev-admin-api-dashboard.json
+    # Step 7: Update Admin Task Definition From Local File
+    - name: Deploy Admin Amazon ECS task definition
+      if: "${{ inputs.environment == 'dev-admin-api-dashboard'}}"
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ env.ADMIN_TASK_DEFINITION }}
+        service: ${{ env.ADMIN_ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+          
+    - name: Download Admin ECS Task Definition
+      if: "${{ inputs.environment == 'dev-th-api-dashboard'}}"
+      run: |
+        aws ecs describe-task-definition --task-definition dev-th-api-dashboard --query taskDefinition > dev-th-api-dashboard.json
+        ls
+        cat dev-th-api-dashboard.json
+    # Step 7: Update Admin Task Definition From Local File
+    - name: Deploy Admin Amazon ECS task definition
+      if: "${{ inputs.environment == 'dev-th-api-dashboard'}}"
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ env.TH_TASK_DEFINITION }}
+        service: ${{ env.TH_ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+          
         
         
+
